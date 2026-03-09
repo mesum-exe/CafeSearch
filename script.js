@@ -50,3 +50,44 @@ async function useLocation(lat, lng) {
 }
 
 // Defining the card display
+
+function displayCards(cafes) {
+    const container = document.querySelector('.cards');
+    container.innerHTML = ''; // create an empty card
+
+    cafes.forEach((cafe, i) => {
+        const wrapper = document.createElement('div'); // new div wraps around every card
+        wrapper.className = 'swipe-wrapper';           // class for styling
+        wrapper.style.zIndex = 200 - i;                // using z-index makes new cards appear below existing cards
+
+        var newCards = document.querySelectorAll('.location-card:not(.removed)');
+        var allCards = document.querySelectorAll('.location-card');
+    });
+
+    const card = document.createElement("div");
+    card.className = "location-card";
+
+    // adds location information inside each card
+    const imgUrl = cafe.photos?.[0]?.photo_reference
+    ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${cafe.photos[0].photo_reference}&key=${apiKey}`
+    : "https://via.placeholder.com/250x150?text=No+Image";
+
+    // name, location, photo, rating of every cafe
+    const cafeData = { 
+        name: cafe.name,
+        place_id: cafe.place_id,
+        photo: imgUrl,
+        rating: cafe.rating || "N/A",
+    };
+
+    // display information
+    card.innerHTML = `
+        <img src="${imgUrl}" alt="${cafe.name}" />
+        <h3>${cafe.name}</h3>
+        <p>⭐️ Rating: ${cafe.rating || "N/A"}</p>
+        <p><small>Swipe right to save 💖</small></p>
+        `;
+
+    wrapper.appendChild(card);
+    container.appendChild(wrapper);
+}
