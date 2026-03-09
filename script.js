@@ -90,4 +90,69 @@ function displayCards(cafes) {
 
     wrapper.appendChild(card);
     container.appendChild(wrapper);
+
+    // Using the Hammer lib to recognize touch gestures so cards flick and fade when swiped left or right.
+    const hammertime = new Hammer(wrapper);
+    hammertime.on("swipeleft", () => {
+        wrapper.style.transform = "translateX(-150%) rotate(-15deg)";
+        wrapper.style.opacity = 0;
+        setTimeout(() => wrapper.remove(), 100);
+    });
+    hammertime.on("swiperight", () => {
+        saveCafe(JSON.stringify(cafeData));
+        wrapper.style.transform = "translateX(150%) rotate(15deg)";
+        wrapper.style.opacity = 0;
+        setTimeout(() => wrapper.remove(), 100);
+    });
 }
+
+// Users swipe left to move to the next card, and swipe right to save the cafe. 
+// This gamifies the experience, making it more engaging.
+
+function saveCafe(cafeJSON) {
+    // JSON parsing
+    const cafe = JSON.parse(cafeJSON); // store string as an object 'cafe'
+    let saved = JSON.parse(localStorage.getItem('savedCafes') || '[]'); // parse through cache and store the 'savedCafes' as an array 'saved'
+    // For simplicity in this project, we use cache / local storage instead of a database for saving cafes.
+
+    // make sure cafe being saved doesnt already exist in the saved array, using the 'place_id' in the 'cafe' object
+    if (!saved.find((c) => c.place_id === cafe.place_id)) { 
+        saved.push(cafe);
+        localStorage.setItem("savedCafes", JSON.stringify(saved));
+        alert(`${cafe.name} saved!`);
+    }
+    // alert the user otherwise
+    else {
+        alert(`${cafe.name} is already saved.`);
+    }
+}
+
+// Use DOM manipulation to add info to the frontend (display cards) from the local storage (saved cafes)
+function showSaved() {
+    const container = document.querySelector('.cards');
+    container.innerHTML = '';   // blank container
+    const saved = JSON.parse(localStorage.getItem("savedCafes") || "[]");
+
+    // if 'saved' is empty, add a paragraph informing the user
+    if (saved.length === 0) {
+        container.innerHTML = "<p>No saved cafes yet 😢</p>";
+        return;
+    }
+
+    // create a card and add the current cafe's info
+    saved.forEach(cafe => {
+        const card = document.createElement('div');
+        card.className = 'location-card';
+        card.innerHTML = `
+            <img src="${cafe.photo}" alt="${cafe.name}" />
+            <h3>${cafe.name}</h3>
+            <p>⭐️ Rating: ${cafe.rating}</p>
+        `;
+        
+        container.appendChild(card);  // add the resulting card to its container
+    });
+}
+        
+
+
+
