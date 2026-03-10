@@ -1,7 +1,18 @@
-const apiKey = "STRING_OF_RANDOM_CHARACTERS_HERE"; // unique private api key from google cloud (places api)
+const apiKey = CONFIG.API_KEY; // unique private api key from google cloud (places api)
 
+// dynamically load google maps sdk script (to keep api hidden)
+(function loadGoogleMaps() {
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+})();
+
+/*
 const useProxy = true;
 const proxy = "https://cors-anywhere.herokuapp.com"; // demo server
+*/
 
 function getLocation() {
     const cache = JSON.parse(localStorage.getItem('cachedLocation') || '{}');
@@ -28,23 +39,43 @@ function getLocation() {
 }
 
 async function useLocation(lat, lng) {
-    // reference the Google Places API using our API key and saved lat and long coords.
-    const endpoint = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=1500&type=cafe&key=${apiKey}`;
-    const url = useProxy ? proxy + endpoint : endpoint; 
+    // define the center point
+    const center = { lat: lat, lng: lng };
+
+    // setup the request for the API
+    const { Place } = await google.maps.importLibrary("places");
+    
+    const request = {
+        includedPrimaryTypes: ["cafe"],
+        locationRestriction: {
+            center: center,
+            radius: 1500,
+        },
+        fields: ["displayName", "id", "photos", "rating"],
+        maxResultCount: 20
+    };
 
     try {
-        const response = await fetch(url);  // call api to find nearby cafes and fetch their urls.
-        const data = await response.json();
-    
-        if (data.results) {
-            displayCards(data.results);     // if cafes are found, add them to the card display
-        } 
-        else {
+        // perform the search
+        const { places } = await Place.searchNearby(request);
+
+        if (places && places.length > 0) {
+            
+            // map results to standard variable names
+            const mappedResults = places.map(p => ({
+                name: p.displayName,
+                place_id: p.id,
+                // url is generated
+                photo: (p.photos && p.photos.length > 0) ? p.photos[0].getURI({ maxWidth: 400 }) : "https://via.placeholder.com/250x150?text=No+Image",
+                rating: p.rating
+            }));
+
+            displayCards(mappedResults);
+        } else {
             alert("No cafes found.");
         }
-    } 
-    catch (e) {
-        console.error("Error fetching Places API:", e);
+    } catch (e) {
+        console.error("New Places API Error:", e);
         alert("Error fetching cafes.");
     }
 }
@@ -53,56 +84,52 @@ async function useLocation(lat, lng) {
 
 function displayCards(cafes) {
     const container = document.querySelector('.cards');
-    container.innerHTML = ''; // create an empty card
+    container.innerHTML = ''; // create an empty card object
 
-    cafes.forEach((cafe, i) => {
+    cafes.forEach((cafe, i) => { // iterate through every card
         const wrapper = document.createElement('div'); // new div wraps around every card
         wrapper.className = 'swipe-wrapper';           // class for styling
         wrapper.style.zIndex = 200 - i;                // using z-index makes new cards appear below existing cards
 
         var newCards = document.querySelectorAll('.location-card:not(.removed)');
         var allCards = document.querySelectorAll('.location-card');
-    });
 
-    const card = document.createElement("div");
-    card.className = "location-card";
+        const card = document.createElement("div");
+        card.className = "location-card";
 
-    // adds location information inside each card
-    const imgUrl = cafe.photos?.[0]?.photo_reference
-    ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${cafe.photos[0].photo_reference}&key=${apiKey}`
-    : "https://via.placeholder.com/250x150?text=No+Image";
+        // updated for the Places (new) v2 API
+        // name, location, photo, rating of every cafe
+        const cafeData = { 
+            name: cafe.name,
+            place_id: cafe.place_id,
+            photo: cafe.photo, // This is now the URL string
+            rating: cafe.rating || "N/A",
+        };
 
-    // name, location, photo, rating of every cafe
-    const cafeData = { 
-        name: cafe.name,
-        place_id: cafe.place_id,
-        photo: imgUrl,
-        rating: cafe.rating || "N/A",
-    };
+        // display information
+        card.innerHTML = `
+            <img src="${cafeData.photo}" alt="${cafeData.name}" />
+            <h3>${cafeData.name}</h3>
+            <p>⭐️ Rating: ${cafeData.rating || "N/A"}</p>
+            <p><small>Swipe right to save 💖</small></p>
+            `;
 
-    // display information
-    card.innerHTML = `
-        <img src="${imgUrl}" alt="${cafe.name}" />
-        <h3>${cafe.name}</h3>
-        <p>⭐️ Rating: ${cafe.rating || "N/A"}</p>
-        <p><small>Swipe right to save 💖</small></p>
-        `;
+        wrapper.appendChild(card);
+        container.appendChild(wrapper);
 
-    wrapper.appendChild(card);
-    container.appendChild(wrapper);
-
-    // Using the Hammer lib to recognize touch gestures so cards flick and fade when swiped left or right.
-    const hammertime = new Hammer(wrapper);
-    hammertime.on("swipeleft", () => {
-        wrapper.style.transform = "translateX(-150%) rotate(-15deg)";
-        wrapper.style.opacity = 0;
-        setTimeout(() => wrapper.remove(), 100);
-    });
-    hammertime.on("swiperight", () => {
-        saveCafe(JSON.stringify(cafeData));
-        wrapper.style.transform = "translateX(150%) rotate(15deg)";
-        wrapper.style.opacity = 0;
-        setTimeout(() => wrapper.remove(), 100);
+        // Using the Hammer lib to recognize touch gestures so cards flick and fade when swiped left or right.
+        const hammertime = new Hammer(wrapper);
+        hammertime.on("swipeleft", () => {
+            wrapper.style.transform = "translateX(-150%) rotate(-15deg)";
+            wrapper.style.opacity = 0;
+            setTimeout(() => wrapper.remove(), 100);
+        });
+        hammertime.on("swiperight", () => {
+            saveCafe(JSON.stringify(cafeData));
+            wrapper.style.transform = "translateX(150%) rotate(15deg)";
+            wrapper.style.opacity = 0;
+            setTimeout(() => wrapper.remove(), 100);
+        });
     });
 }
 
@@ -152,7 +179,6 @@ function showSaved() {
         container.appendChild(card);  // add the resulting card to its container
     });
 }
-        
 
 
 
